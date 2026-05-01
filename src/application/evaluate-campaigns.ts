@@ -1,12 +1,14 @@
-import type { CampaignReport, RawCampaign } from '../domain/campaign-report.js';
+import type { CampaignEvaluationPayload, CampaignReport, RawCampaign } from '../domain/campaign-report.js';
 import { classifyMetric, type Thresholds } from '../domain/threshold-policy.js';
 import type { ICampaignDataSource } from '../infrastructure/datasources/campaign-data-source.js';
+import type { ICampaignWorkflowNotifier } from '../infrastructure/workflows/campaign-workflow-notifier.js';
 import type { ICampaignRepository } from '../infrastructure/storage/campaign-repository.js';
 
 export type EvaluateCampaignsDeps = {
   readonly dataSource: ICampaignDataSource;
   readonly repository: ICampaignRepository;
   readonly thresholds: Thresholds;
+  readonly workflowNotifier?: ICampaignWorkflowNotifier;
   readonly clock?: () => Date;
   readonly logger?: { info: (msg: string, ctx?: Record<string, unknown>) => void };
 };
@@ -16,14 +18,15 @@ export type EvaluateCampaignsParams = {
 };
 
 export type EvaluateCampaignsResult = {
+  readonly payload: CampaignEvaluationPayload;
   readonly reports: readonly CampaignReport[];
   readonly summary: Readonly<Record<CampaignReport['status'], number>>;
 };
 
 /**
- * Caso de uso central: orquesta `fetch -> map -> classify -> persist`.
- * No conoce la fuente ni el almacenamiento; depende solo de los puertos `ICampaignDataSource`
- * e `ICampaignRepository`, lo que permite agregar fuentes sin tocar este archivo.
+ * Caso de uso central: orquesta `fetch -> map -> classify -> persist -> notify`.
+ * No conoce la fuente ni el almacenamiento; depende solo de puertos, lo que permite
+ * agregar fuentes, persistencias o automatizaciones sin tocar el dominio.
  */
 export class EvaluateCampaignsUseCase {
   private readonly clock: () => Date;
@@ -33,33 +36,42 @@ export class EvaluateCampaignsUseCase {
   }
 
   /**
-   * Trae las campanas, las clasifica con la politica de umbrales y las persiste.
-   * Devuelve los reportes y un resumen agregado por estado.
+   * Trae las campañas, las clasifica con la politica de umbrales y persiste el payload.
+   * Si hay un workflowNotifier configurado, tambien envia el mismo payload a N8N.
    */
   async execute(params: EvaluateCampaignsParams = {}): Promise<EvaluateCampaignsResult> {
     const raw = await this.deps.dataSource.fetchCampaigns(
       params.limit !== undefined ? { limit: params.limit } : {},
     );
-    const reports = raw.map((c) => this.toReport(c));
-    await this.deps.repository.save(reports);
+    const generatedAt = this.clock();
+    const reports = raw.map((c) => this.toReport(c, generatedAt));
+    const payload: CampaignEvaluationPayload = {
+      source: this.deps.dataSource.name,
+      generatedAt,
+      count: reports.length,
+      reports,
+    };
+
+    await this.deps.repository.save(payload);
+    await this.deps.workflowNotifier?.notify(payload);
 
     const summary = this.summarize(reports);
     this.deps.logger?.info('campaigns evaluated', {
-      source: this.deps.dataSource.name,
-      count: reports.length,
+      source: payload.source,
+      count: payload.count,
       ...summary,
     });
 
-    return { reports, summary };
+    return { payload, reports, summary };
   }
 
-  private toReport(raw: RawCampaign): CampaignReport {
+  private toReport(raw: RawCampaign, evaluatedAt: Date): CampaignReport {
     return {
       id: raw.id,
       name: raw.name,
       metric: raw.metric,
       status: classifyMetric(raw.metric, this.deps.thresholds),
-      evaluatedAt: this.clock(),
+      evaluatedAt,
     };
   }
 

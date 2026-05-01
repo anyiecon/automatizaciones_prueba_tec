@@ -1,0 +1,253 @@
+{
+  "name": "Inlaze Campaign Status Router",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "inlaze-campaign-monitor",
+        "options": {}
+      },
+      "id": "46e514ae-e939-4d01-a38d-87a42216f533",
+      "name": "Webhook - Campaign Payload",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1088,
+        192
+      ],
+      "webhookId": "inlaze-campaign-monitor"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $json.body ?? $json;\nconst reports = Array.isArray(input.reports) ? input.reports : [];\nconst actionable = reports.filter((report) => ['warning', 'critical'].includes(report.status));\nreturn actionable.map((report) => ({\n  json: {\n    source: input.source ?? 'unknown',\n    generatedAt: input.generatedAt ?? new Date().toISOString(),\n    id: report.id,\n    name: report.name,\n    metric: report.metric,\n    status: report.status,\n    evaluatedAt: report.evaluatedAt,\n  },\n}));"
+      },
+      "id": "f338de53-8cea-4478-b256-6adaef1abeaa",
+      "name": "Filter warning and critical",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -848,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "de25d4e0-a566-4351-aec1-54905073fd46",
+              "leftValue": "={{$json.status}}",
+              "rightValue": "critical",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "fe03f0f0-562b-4720-b43f-3d2ff8ae8820",
+      "name": "Is critical?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -576,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://discord.com/api/webhooks/1499792130963411115/Alny_JJF09hGQTz_A0YFrPNBLB-J3TKc4JfY0BMiBX5hO3k6iL8o-ZjurHL7DjxampmO",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"content\": \"CRITICAL campaign \" + $json.name + \" (\" + $json.id + \") metric=\" + $json.metric + \" source=\" + $json.source + \" evaluatedAt=\" + $json.evaluatedAt } }}",
+        "options": {}
+      },
+      "id": "39bb2483-cc1d-4c25-a091-6392f610fbf5",
+      "name": "Discord critical alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -288,
+        64
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://webhook.site/a4993505-514e-47b6-a31c-fc4f5bd6ed33",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"campaignId\": $json.id, \"name\": $json.name, \"metric\": $json.metric, \"status\": $json.status, \"source\": $json.source, \"generatedAt\": $json.generatedAt, \"evaluatedAt\": $json.evaluatedAt } }}",
+        "options": {}
+      },
+      "id": "7ac261a4-4c47-49d3-a912-7936c475468a",
+      "name": "Simulated Sheet warning log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -304,
+        336
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "console.log('[campaign-critical-sent]', JSON.stringify($json));\nreturn [{ json: { delivered: true, channel: 'discord', receivedAt: new Date().toISOString(), response: $json } }];"
+      },
+      "id": "fd3fa34b-2a8a-423c-9ab7-f72478138751",
+      "name": "Critical sent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "console.log('[campaign-warning-logged]', JSON.stringify($json));\nreturn [{ json: { delivered: true, channel: 'sheet-simulation', receivedAt: new Date().toISOString(), response: $json } }];"
+      },
+      "id": "4db8a7df-8f0c-4433-9be1-fb22eea75682",
+      "name": "Warning logged",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $json.error ?? $json;\nconsole.log('[campaign-workflow-error]', JSON.stringify(error));\nreturn [{ json: { handled: true, loggedAt: new Date().toISOString(), error } }];"
+      },
+      "id": "36a43cd2-b7c7-436c-af01-a9657977c57b",
+      "name": "Log delivery error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        192
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook - Campaign Payload": {
+      "main": [
+        [
+          {
+            "node": "Filter warning and critical",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter warning and critical": {
+      "main": [
+        [
+          {
+            "node": "Is critical?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is critical?": {
+      "main": [
+        [
+          {
+            "node": "Discord critical alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Simulated Sheet warning log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Discord critical alert": {
+      "main": [
+        [
+          {
+            "node": "Critical sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log delivery error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simulated Sheet warning log": {
+      "main": [
+        [
+          {
+            "node": "Warning logged",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log delivery error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "0d7157e6-20e0-4835-8353-d8eb8681b8c4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b6e4eb406320c37c7fcedc06098e8f230e6336b50d395292d91dc16e92464003"
+  },
+  "id": "JXgAIu3MbK7B4VB9",
+  "tags": []
+}

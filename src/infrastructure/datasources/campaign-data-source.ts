@@ -5,7 +5,7 @@ export type FetchCampaignsParams = {
 };
 
 /**
- * Puerto de entrada de datos de campanas.
+ * Puerto de entrada de datos de campañas.
  * Agregar una nueva fuente = nueva clase que implementa esta interfaz; el nucleo no cambia.
  */
 export interface ICampaignDataSource {
@@ -13,7 +13,7 @@ export interface ICampaignDataSource {
   readonly name: string;
 
   /**
-   * Obtiene campanas crudas de la fuente externa.
+   * Obtiene campañas crudas de la fuente externa.
    * @throws {NetworkError | TimeoutError | HttpStatusError} fallos de transporte.
    * @throws {ValidationError} si la respuesta no cumple el schema esperado.
    * @throws {RetryExhaustedError} si los reintentos transitorios se agotan.

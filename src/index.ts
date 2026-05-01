@@ -4,6 +4,7 @@ import { DummyJsonDataSource } from './infrastructure/datasources/dummyjson-data
 import { HttpClient } from './infrastructure/http/http-client.js';
 import { consoleLogger } from './infrastructure/logger.js';
 import { JsonFileRepository } from './infrastructure/storage/json-file-repository.js';
+import { N8nWebhookNotifier } from './infrastructure/workflows/n8n-webhook-notifier.js';
 
 async function main(): Promise<void> {
   const env = loadEnv();
@@ -21,13 +22,16 @@ async function main(): Promise<void> {
   const dataSource = new DummyJsonDataSource(http, { defaultLimit: env.CAMPAIGNS_LIMIT });
   const repository = new JsonFileRepository({
     filePath: env.OUTPUT_PATH,
-    source: dataSource.name,
   });
+  const workflowNotifier = env.N8N_WEBHOOK_URL
+    ? new N8nWebhookNotifier({ webhookUrl: env.N8N_WEBHOOK_URL, timeoutMs: env.HTTP_TIMEOUT_MS })
+    : undefined;
 
   const useCase = new EvaluateCampaignsUseCase({
     dataSource,
     repository,
     thresholds: { warning: env.THRESHOLD_WARNING, critical: env.THRESHOLD_CRITICAL },
+    ...(workflowNotifier ? { workflowNotifier } : {}),
     logger: consoleLogger,
   });
 

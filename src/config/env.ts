@@ -3,6 +3,11 @@ import { z } from 'zod';
 
 loadDotenv();
 
+const OptionalUrlSchema = z.preprocess(
+  (value) => (value === '' ? undefined : value),
+  z.string().url().optional(),
+);
+
 const EnvSchema = z.object({
   API_BASE_URL: z.string().url().default('https://dummyjson.com'),
   HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(8_000),
@@ -12,6 +17,7 @@ const EnvSchema = z.object({
   THRESHOLD_WARNING: z.coerce.number().default(2.5),
   THRESHOLD_CRITICAL: z.coerce.number().default(1.0),
   OUTPUT_PATH: z.string().min(1).default('./data/campaigns.json'),
+  N8N_WEBHOOK_URL: OptionalUrlSchema,
 });
 
 export type AppEnv = z.infer<typeof EnvSchema>;

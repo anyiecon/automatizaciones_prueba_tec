@@ -174,6 +174,39 @@ muere a la mitad, el archivo de salida queda intacto (no se corrompe el input de
 
 Este JSON es exactamente el payload que la Parte 2 (flujo N8N) recibirá vía webhook.
 
+## Parte 2 - Flujo N8N
+
+El flujo exportado esta en [workflows/n8n-campaign-router.json](workflows/n8n-campaign-router.json)
+
+- `Webhook - Campaign Payload`: recibe por HTTP POST el payload generado en la Parte 1.
+- `Filtar entre warning y critical`: descarta campañas `ok` y conserva solo `warning` o `critical`.
+- `Is critical?`: bifurca el camino.
+![alt text](image.png)
+- `Discord critical alert`: envia las campañas `critical` a un webhook Discord/Slack. usa tu url de discor en este caso dejaré las mias ; si no existe o da un error este va a Log delivery error para simular.
+![alt text](image-1.png)![alt text](image-2.png)
+- `Simulación Sheet warning log`: registra las campañas `warning` por HTTP. Usamos https://webhook.site para hacer una recepción ficticia tomado https://webhook.site/numero_id; si no existe o da un error este va a Log delivery error para simular.
+![alt text](image-3.png)![alt text](image-4.png)
+- `Log delivery error`: captura errores de los nodos HTTP y los loguea sin cortar toda la ejecucion.
+![alt text](image-5.png)
+### Probar conexion Parte 1 -> N8N
+
+1. Importar `workflows/n8n-campaign-router.json` en N8N.
+2. Copiar la URL de test o produccion del nodo `Webhook - Campaign Payload`.
+![alt text](image-6.png)
+
+```bash
+N8N_WEBHOOK_URL=http://localhost:5678/webhook-test/inlaze-campaign-monitor
+```
+
+3. Ejecutar:
+
+```bash
+npm run dev
+```
+
+El script guarda `data/campaigns.json` y, si `N8N_WEBHOOK_URL` existe, envia ese mismo
+payload al webhook.
+
 ## Tests
 
 ```bash

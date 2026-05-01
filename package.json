@@ -2,7 +2,7 @@
   "name": "inlaze-campaign-monitor",
   "version": "0.1.0",
   "private": true,
-  "description": "Parte 1 de la prueba tecnica Inlaze: ingesta y evaluacion de campanas con umbrales y retry",
+  "description": "Parte 1 de la prueba tecnica Inlaze: ingesta y evaluacion de campañas con umbrales y retry",
   "type": "module",
   "engines": {
     "node": ">=20.0.0"
