@@ -380,3 +380,25 @@ Cubre:
 - `process-campaign-performance` — diagnostico/refactor 3A, CTR bajo y concurrencia maxima
 - `find-worst-roas-campaigns` — query tipada 3B con agrupacion por operador y ROAS
 - `generate-campaign-summary` — resumen LLM, fallback ante error, construccion del prompt
+
+## Parte 5 — Diseño Conceptual de Agente de IA
+
+El agente difiere de un script en que **razona** antes de actuar: considera contexto (¿ya fue pausada? ¿otras campañas del operador compensan?) en lugar de aplicar reglas fijas.
+
+**Componentes:** orquestador LLM, registro de tools tipadas, base de datos de campañas y log de auditoría inmutable.
+
+**Tools disponibles:**
+- `get_campaigns(status?, operator?)` — consulta el estado actual.
+- `pause_campaign(id)` — pausa y retorna el estado previo.
+- `send_alert(channel, message)` — notifica vía Slack o email.
+- `log_action(tool, params, reason)` — registra la decisión antes de ejecutarla.
+
+**Cómo funciona el tool-calling:** el LLM recibe los esquemas de las tools y genera una llamada estructurada (`{ tool: "pause_campaign", params: { id: "5" } }`). El sistema la ejecuta y devuelve el resultado al LLM, que decide si invocar otra tool o terminar. Esto es lo que diferencia a un agente de un pipeline lineal.
+
+**Loop de decisión (ReAct):**
+1. **Observe** — `get_campaigns` trae el estado actual de la BD.
+2. **Reason** — el LLM analiza métricas, historial y reglas de negocio.
+3. **Act** — invoca la tool apropiada.
+4. **Reflect** — evalúa el resultado e itera o termina.
+
+**Auditabilidad:** `log_action` se llama antes de cualquier acción irreversible; el registro incluye timestamp, parámetros y justificación. Pausas con gasto elevado requieren confirmación humana.
