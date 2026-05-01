@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { generateCampaignSummary } from './application/generate-campaign-summary.js';
 import { EvaluateCampaignsUseCase } from './application/evaluate-campaigns.js';
 import { loadEnv } from './config/env.js';
-import { DummyJsonDataSource } from './infrastructure/datasources/dummyjson-data-source.js';
+import { FakeStoreApiDataSource } from './infrastructure/datasources/fakestoreapi-data-source.js';
 import { HttpClient } from './infrastructure/http/http-client.js';
 import { OpenRouterClient } from './infrastructure/llm/openrouter-client.js';
 import { consoleLogger } from './infrastructure/logger.js';
@@ -23,7 +23,7 @@ async function main(): Promise<void> {
     logger: consoleLogger,
   });
 
-  const dataSource = new DummyJsonDataSource(http, { defaultLimit: env.CAMPAIGNS_LIMIT });
+  const dataSource = new FakeStoreApiDataSource(http, { defaultLimit: env.CAMPAIGNS_LIMIT });
   const repository = new JsonFileRepository({ filePath: env.OUTPUT_PATH });
   const workflowNotifier = env.N8N_WEBHOOK_URL
     ? new N8nWebhookNotifier({ webhookUrl: env.N8N_WEBHOOK_URL, timeoutMs: env.HTTP_TIMEOUT_MS })

@@ -38,7 +38,7 @@ El resultado se guarda en `./data/campaigns.json` (configurable vía `OUTPUT_PAT
 
 ### ¿Por qué DummyJSON?
 
-Se eligió [DummyJSON `/products`](https://dummyjson.com/products) como simulación de
+Se eligió [DummyJSON `/products`](https://fakestoreapi.com/products) como simulación de
 fuente de datos de campañas porque:
 
 1. **Pública y sin autenticación** — facilita correrlo en cualquier entorno sin secretos.

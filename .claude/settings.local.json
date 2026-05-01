@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where node *)",
+      "Bash(where python *)",
+      "Bash(where python3 *)",
+      "Bash(curl -s \"https://openlibrary.org/search.json?q=science&limit=10&fields=key,title,ratings_average,ratings_count\")",
+      "Bash(C:/Users/anyie/AppData/Local/Programs/Python/Python313/python.exe -c ' *)",
+      "PowerShell($env:PATH += \";C:\\\\Program Files\\\\nodejs\"; cd \"C:\\\\Users\\\\anyie\\\\OneDrive\\\\Documentos\\\\automatizaciones_PTec\"; npm run dev 2>&1 | Select-Object -Last 10)"
+    ]
+  }
+}
