@@ -1,9 +1,9 @@
-/** Estados posibles de una campana segun la metrica evaluada. */
+/** Los tres estados posibles de una campaña según cómo le fue con su métrica. */
 export type CampaignStatus = 'ok' | 'warning' | 'critical';
 
 /**
- * Reporte tipado de campana - estructura exigida por el enunciado (Parte 1, paso 2).
- * Es el contrato que consumen las Partes 2, 3 y 4.
+ * El reporte final de una campaña — la estructura que pide el enunciado.
+ * Este tipo viaja desde la Parte 1 hasta N8N, Slack y Google Sheets.
  */
 export type CampaignReport = {
   id: string;
@@ -13,7 +13,10 @@ export type CampaignReport = {
   evaluatedAt: Date;
 };
 
-/** Payload completo que comparten la salida local y el webhook de N8N. */
+/**
+ * El sobre completo que sale del pipeline: metadatos + todos los reportes.
+ * Es lo mismo que se guarda en disco y lo que se envía al webhook de N8N.
+ */
 export type CampaignEvaluationPayload = {
   source: string;
   generatedAt: Date;
@@ -21,7 +24,7 @@ export type CampaignEvaluationPayload = {
   reports: readonly CampaignReport[];
 };
 
-/** Forma cruda independiente de la fuente - la produce cualquier `ICampaignDataSource`. */
+/** Los datos en bruto que viene de cualquier fuente antes de evaluarlos. */
 export type RawCampaign = {
   id: string;
   name: string;

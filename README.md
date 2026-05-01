@@ -1,4 +1,4 @@
-# Inlaze - Monitor de Campañas (Parte 1)
+# Inlaze - Monitor de Campañas
 
 Script en TypeScript/Node.js que consume una API REST pública, transforma la respuesta en
 reportes tipados de campaña, aplica reglas de umbral y persiste el resultado en JSON local
@@ -207,6 +207,53 @@ npm run dev
 El script guarda `data/campaigns.json` y, si `N8N_WEBHOOK_URL` existe, envia ese mismo
 payload al webhook.
 
+## Parte 3 - Extension de codigo y base de datos
+
+### 3A — Problemas identificados en el codigo original
+
+El fragmento entregado funciona solo en el caso feliz. Se identificaron 4 problemas:
+
+**1. Sin validacion de respuesta**
+`response.data` es `any` en axios. Si `clicks` o `impressions` llegan como `string` o `null`, el CTR se calcula sobre datos corruptos sin ningun aviso.
+Correccion: validacion con Zod (`RemoteCampaignSchema`) antes de operar sobre los datos.
+
+**2. Division por cero**
+`clicks / impressions` sin proteger `impressions === 0` produce `Infinity` o `NaN` silenciosamente.
+Correccion: `calculateCtr()` detecta el caso y lanza `ValidationError` con mensaje explicito.
+
+**3. Loop secuencial**
+El `for...of` con `await` dentro procesa una campana a la vez. Con 100 IDs el tiempo es 100x la latencia individual.
+Correccion: `processCampaigns` delega en `mapConcurrent` con tope de 3 peticiones simultaneas.
+
+**4. Array sin tipo**
+`const results = []` se infiere como `any[]`; el contrato de salida queda implicito y TypeScript no protege nada.
+Correccion: tipo explicito `CampaignCtrResult` en todo el flujo, sin ningun `any`.
+
+La funcion `findLowCtrCampaigns()` fue agregada sobre el codigo refactorizado: retorna solo las campanas con `ctr < 0.02`, ordenadas de menor a mayor CTR.
+
+La utilidad `mapConcurrent` se extrajo a [src/infrastructure/concurrency/map-concurrent.ts](src/infrastructure/concurrency/map-concurrent.ts) por ser generica — no depende del dominio y puede reutilizarse en cualquier flujo concurrente del proyecto.
+
+### 3B — Query con Prisma Client
+
+Archivo: [src/application/find-worst-roas-campaigns.ts](src/application/find-worst-roas-campaigns.ts)
+
+Usa la API de Prisma en lugar de SQL crudo, con tipos propios que replican el subconjunto necesario del cliente generado (evita acoplarse a `@prisma/client` directamente en el dominio):
+
+1. `campaignMetric.groupBy()` agrupa por `campaignId`, filtra `recordedAt >= now - N dias`, calcula `_avg.roas` y devuelve **ordenado por ROAS asc** desde la BD.
+2. Se filtran en memoria los registros con `_avg.roas === null` (campanas sin datos).
+3. `campaign.findMany()` trae nombre y operador de las campanas resultantes.
+4. Se agrupa en memoria por operador aprovechando que Prisma ya devuelve ordenado — se acumula con `push` directo (O(n)) en lugar de re-ordenar en cada iteracion (O(n log n)).
+5. Los operadores se ordenan de menor a mayor ROAS del peor de sus campanas.
+
+Tipo de retorno:
+
+```ts
+type WorstRoasCampaignsByOperator = {
+  operator: { id: string; name: string };
+  campaigns: readonly WorstRoasCampaign[];  // ordenados peor ROAS primero
+};
+```
+
 ## Tests
 
 ```bash
@@ -214,6 +261,9 @@ npm test
 ```
 
 Cubre:
+
+- `process-campaign-performance` - diagnostico/refactor 3A, CTR bajo y concurrencia maxima
+- `find-worst-roas-campaigns` - query tipada 3B con agrupacion por operador y orden por ROAS
 
 - `threshold-policy` — clasificación, fronteras, validación de input
 - `retry` — éxito, reintentos, backoff exponencial, errores no reintentables
