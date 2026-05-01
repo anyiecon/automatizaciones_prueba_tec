@@ -14,7 +14,7 @@ const OptionalStringSchema = z.preprocess(
 );
 
 const EnvSchema = z.object({
-  API_BASE_URL: z.string().url().default('https://dummyjson.com'),
+  API_BASE_URL: z.string().url().default('https://fakestoreapi.com'),
   HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(8_000),
   RETRY_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
   RETRY_BASE_DELAY_MS: z.coerce.number().int().positive().default(300),
@@ -25,7 +25,7 @@ const EnvSchema = z.object({
   LLM_OUTPUT_PATH: z.string().min(1).default('./data/llm-summary.json'),
   N8N_WEBHOOK_URL: OptionalUrlSchema,
   OPENROUTER_API_KEY: OptionalStringSchema,
-  OPENROUTER_MODEL: z.string().min(1).default('meta-llama/llama-3.3-70b-instruct:free'),
+  OPENROUTER_MODEL: z.string().min(1).default('nvidia/nemotron-nano-9b-v2:free'),
   LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
 });
 
