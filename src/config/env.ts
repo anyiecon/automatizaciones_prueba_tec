@@ -8,6 +8,11 @@ const OptionalUrlSchema = z.preprocess(
   z.string().url().optional(),
 );
 
+const OptionalStringSchema = z.preprocess(
+  (value) => (value === '' ? undefined : value),
+  z.string().optional(),
+);
+
 const EnvSchema = z.object({
   API_BASE_URL: z.string().url().default('https://dummyjson.com'),
   HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(8_000),
@@ -17,7 +22,11 @@ const EnvSchema = z.object({
   THRESHOLD_WARNING: z.coerce.number().default(2.5),
   THRESHOLD_CRITICAL: z.coerce.number().default(1.0),
   OUTPUT_PATH: z.string().min(1).default('./data/campaigns.json'),
+  LLM_OUTPUT_PATH: z.string().min(1).default('./data/llm-summary.json'),
   N8N_WEBHOOK_URL: OptionalUrlSchema,
+  OPENROUTER_API_KEY: OptionalStringSchema,
+  OPENROUTER_MODEL: z.string().min(1).default('meta-llama/llama-3.3-70b-instruct:free'),
+  LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
 });
 
 export type AppEnv = z.infer<typeof EnvSchema>;

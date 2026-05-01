@@ -59,7 +59,7 @@ export type FindWorstRoasCampaignsOptions = {
 };
 
 /**
- * Devuelve las campanas con peor ROAS promedio en los ultimos dias,
+ * Devuelve las campañas con peor ROAS promedio en los ultimos dias,
  * agrupadas por operador y ordenadas de menor a mayor ROAS (peor primero).
  *
  * Aprovecha que Prisma devuelve los metrics ya ordenados por ROAS asc para
@@ -88,7 +88,7 @@ export async function findWorstRoasCampaignsByOperator(
     orderBy: { _avg: { roas: 'asc' } },
   });
 
-  // Descartar campanas sin ROAS registrado (monedas nuevas / sin datos).
+  // Descartar campañas sin ROAS registrado (monedas nuevas / sin datos).
   const averages = allAverages.filter(
     (m): m is CampaignMetricAverage & { readonly _avg: { readonly roas: number } } =>
       m._avg.roas !== null,

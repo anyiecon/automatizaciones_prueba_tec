@@ -229,7 +229,7 @@ Correccion: `processCampaigns` delega en `mapConcurrent` con tope de 3 peticione
 `const results = []` se infiere como `any[]`; el contrato de salida queda implicito y TypeScript no protege nada.
 Correccion: tipo explicito `CampaignCtrResult` en todo el flujo, sin ningun `any`.
 
-La funcion `findLowCtrCampaigns()` fue agregada sobre el codigo refactorizado: retorna solo las campanas con `ctr < 0.02`, ordenadas de menor a mayor CTR.
+La funcion `findLowCtrCampaigns()` fue agregada sobre el codigo refactorizado: retorna solo las campañas con `ctr < 0.02`, ordenadas de menor a mayor CTR.
 
 La utilidad `mapConcurrent` se extrajo a [src/infrastructure/concurrency/map-concurrent.ts](src/infrastructure/concurrency/map-concurrent.ts) por ser generica — no depende del dominio y puede reutilizarse en cualquier flujo concurrente del proyecto.
 
@@ -240,10 +240,10 @@ Archivo: [src/application/find-worst-roas-campaigns.ts](src/application/find-wor
 Usa la API de Prisma en lugar de SQL crudo, con tipos propios que replican el subconjunto necesario del cliente generado (evita acoplarse a `@prisma/client` directamente en el dominio):
 
 1. `campaignMetric.groupBy()` agrupa por `campaignId`, filtra `recordedAt >= now - N dias`, calcula `_avg.roas` y devuelve **ordenado por ROAS asc** desde la BD.
-2. Se filtran en memoria los registros con `_avg.roas === null` (campanas sin datos).
-3. `campaign.findMany()` trae nombre y operador de las campanas resultantes.
+2. Se filtran en memoria los registros con `_avg.roas === null` (campañas sin datos).
+3. `campaign.findMany()` trae nombre y operador de las campañas resultantes.
 4. Se agrupa en memoria por operador aprovechando que Prisma ya devuelve ordenado — se acumula con `push` directo (O(n)) en lugar de re-ordenar en cada iteracion (O(n log n)).
-5. Los operadores se ordenan de menor a mayor ROAS del peor de sus campanas.
+5. Los operadores se ordenan de menor a mayor ROAS del peor de sus campañas.
 
 Tipo de retorno:
 
@@ -254,6 +254,117 @@ type WorstRoasCampaignsByOperator = {
 };
 ```
 
+## Parte 4 - Integracion con LLM
+
+### Por que OpenRouter
+
+Se eligio [OpenRouter](https://openrouter.ai) como proveedor porque ofrece una capa gratuita real sin tarjeta de credito, expone una API compatible con el formato de OpenRouter (mensajes `system` + `user`, `response_format: json_object`) y agrega multiples modelos bajo una sola key. El modelo por defecto es `mistralai/mistral-7b-instruct:free`, que maneja bien instrucciones en JSON y esta disponible sin costo. Cambiar de proveedor es una nueva implementacion de `ICampaignLlmClient` sin tocar la logica de la aplicacion.
+
+### Como funciona
+
+`generateCampaignSummary` recibe el array de `CampaignReport`, construye el prompt con `buildCampaignPrompt` y llama a `OpenRouterClient`. El cliente valida la respuesta con Zod e intenta parsear el contenido como JSON estructurado (`StructuredSummary`). Si el parse falla, usa el texto crudo como resumen. Si el LLM no responde o lanza un error, `generateCampaignSummary` captura la excepcion y retorna un resumen de fallback generado localmente sin romper el flujo.
+
+El resultado se guarda en `data/llm-summary.json`.
+
+### Structured output (diferencial)
+
+El prompt instruye al modelo a responder con un JSON con este esquema:
+
+```ts
+type StructuredSummary = {
+  criticalCampaigns: Array<{ id: string; name: string; metric: number; suggestedAction: string }>;
+  warningSummary: string;
+  suggestedActions: string[];
+};
+```
+
+Si el modelo responde en ese formato, `LLMSummary.structured` queda poblado. Si no, `structured` es `undefined` y `summary` contiene el texto crudo.
+
+### Paso a paso para probarlo
+
+**Requisitos previos:** Node.js 20+, cuenta en [openrouter.ai](https://openrouter.ai) (registro gratuito, no requiere tarjeta).
+
+**1. Obtener la API key**
+
+Ir a [https://openrouter.ai/keys](https://openrouter.ai/keys), crear una key y copiarla.
+
+**2. Configurar el entorno**
+
+Si aun no existe el archivo `.env`, crearlo desde el ejemplo:
+
+```bash
+cp .env.example .env
+```
+
+Abrir `.env` y completar la key:
+
+```
+OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+El modelo por defecto es `mistralai/mistral-7b-instruct:free`. Para usar otro modelo gratuito disponible en OpenRouter, cambiar `OPENROUTER_MODEL`:
+
+```
+OPENROUTER_MODEL=google/gemma-2-9b-it:free
+```
+
+**3. Instalar dependencias (si aun no se hizo)**
+
+```bash
+npm install
+```
+
+**4. Ejecutar el pipeline completo**
+
+```bash
+npm run dev
+```
+
+El script hace lo siguiente en orden:
+
+- Consulta DummyJSON y evalua las campañas con los umbrales configurados.
+- Guarda los reportes en `data/campaigns.json`.
+- Si `OPENROUTER_API_KEY` esta presente, llama al LLM y guarda el resumen en `data/llm-summary.json`.
+- Si `N8N_WEBHOOK_URL` esta presente, envia el payload al webhook de N8N.
+
+**5. Verificar el resultado**
+
+Abrir `data/llm-summary.json`. El archivo tiene esta estructura:
+
+```json
+{
+  "generatedAt": "2026-05-01T10:00:00.000Z",
+  "model": "mistralai/mistral-7b-instruct:free",
+  "summary": "Se detectaron 3 campañas en estado critico...",
+  "structured": {
+    "criticalCampaigns": [
+      { "id": "5", "name": "Huawei P30", "metric": 0.5, "suggestedAction": "Pausar inmediatamente y revisar presupuesto" }
+    ],
+    "warningSummary": "Las campañas en warning muestran rendimiento por debajo del objetivo.",
+    "suggestedActions": [
+      "Revisar segmentacion de las campañas criticas",
+      "Aumentar el presupuesto de campañas con ROAS superior a 2.0"
+    ]
+  }
+}
+```
+
+**6. Probar el fallback (sin API key)**
+
+Dejar `OPENROUTER_API_KEY` vacio en `.env` y ejecutar `npm run dev`. El script salta la llamada al LLM e imprime en consola:
+
+```
+{"level":"info","msg":"llm skipped — set OPENROUTER_API_KEY to enable Parte 4",...}
+```
+
+**7. Ejecutar solo los tests**
+
+```bash
+npm test
+```
+
+Los tests de la Parte 4 usan dobles en lugar de llamadas reales a la API, por lo que no requieren la key.
+
 ## Tests
 
 ```bash
@@ -262,10 +373,10 @@ npm test
 
 Cubre:
 
-- `process-campaign-performance` - diagnostico/refactor 3A, CTR bajo y concurrencia maxima
-- `find-worst-roas-campaigns` - query tipada 3B con agrupacion por operador y orden por ROAS
-
-- `threshold-policy` — clasificación, fronteras, validación de input
-- `retry` — éxito, reintentos, backoff exponencial, errores no reintentables
+- `threshold-policy` — clasificacion, fronteras, validacion de input
+- `retry` — exito, reintentos, backoff exponencial, errores no reintentables
 - `evaluate-campaigns` — caso de uso end-to-end con dobles de prueba
-- `dummyjson-data-source` — mapeo correcto y rechazo de payloads inválidos
+- `dummyjson-data-source` — mapeo correcto y rechazo de payloads invalidos
+- `process-campaign-performance` — diagnostico/refactor 3A, CTR bajo y concurrencia maxima
+- `find-worst-roas-campaigns` — query tipada 3B con agrupacion por operador y ROAS
+- `generate-campaign-summary` — resumen LLM, fallback ante error, construccion del prompt

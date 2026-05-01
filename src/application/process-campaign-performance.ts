@@ -56,7 +56,7 @@ export async function fetchCampaignData(
 }
 
 /**
- * Procesa multiples campanas con concurrencia controlada (maximo DEFAULT_MAX_CONCURRENCY = 3).
+ * Procesa multiples campañas con concurrencia controlada (maximo DEFAULT_MAX_CONCURRENCY = 3).
  *
  * Problema del codigo original que esta funcion corrige:
  * 3. Loop secuencial — el `for...of` con `await` procesaba una campana a la vez;
@@ -74,7 +74,7 @@ export async function processCampaigns(
 }
 
 /**
- * Filtra las campanas con CTR por debajo del umbral y las ordena de menor a mayor CTR.
+ * Filtra las campañas con CTR por debajo del umbral y las ordena de menor a mayor CTR.
  *
  * @throws {RangeError} si `threshold` no es un numero finito >= 0.
  */
